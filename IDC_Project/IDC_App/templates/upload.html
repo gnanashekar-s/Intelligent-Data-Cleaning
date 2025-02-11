@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,14 +7,17 @@
     <title>Upload and Filter CSV</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
             margin: 20px;
             text-align: center;
+        }
+        .table-container {
+            max-width: 80%;
+            overflow-x: auto;
+            margin-top: 20px;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
         }
         th, td {
             border: 1px solid #ddd;
@@ -23,9 +27,13 @@
         th {
             background-color: #f4f4f4;
         }
-        select, input, button {
-            margin: 5px;
-            padding: 5px;
+        .pagination {
+            margin-top: 20px;
+        }
+        .pagination a {
+            margin: 0 5px;
+            text-decoration: none;
+            color: blue;
         }
     </style>
 </head>
@@ -39,43 +47,95 @@
         <button type="submit">Upload</button>
     </form>
 
-    {% if data %}
+    {% if page_obj %}
         <h3>Filter Options</h3>
-        <form method="get">
+        <form method="POST">
             <label for="filter_type">Select Filter:</label>
             <select name="filter_type" id="filter_type">
                 <option value="all">Show All Data</option>
-                <option value="integers">Retrieve Only Integer Data</option>
-                <option value="strings">Retrieve Only String Data</option>
-                <option value="column">Retrieve Specific Column</option>
-            </select>
-
-            <label for="column_name">Column Name (for column-based filters):</label>
-            <input type="text" name="column_name" id="column_name">
-
+                <option value="integers">Only Integer Data</option>
+                <option value="strings">Only String Data</option>
+                <option value="column">Specific Column</option>
+            </select><br>
+            <div id="column_select" style="display: none;">
+                <label for="required_cols">Select Columns:</label>
+                <select name="required_col" id="required_cols" multiple>
+                    {% for col in columns %}
+                        <option value="{{ col }}" {% if col in selected_columns %}selected{% endif %}>
+                            {{ col }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            
             <button type="submit">Apply Filter</button>
         </form>
 
-        <h3>Filtered CSV Data</h3>
-        <table>
-            <thead>
-                <tr>
-                    {% for header in headers %}
-                        <th>{{ header }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in data %}
+        <h3>Filtered Data</h3>
+        <center>
+        <div class="table-container">
+            <table>
+                <thead>
                     <tr>
-                        {% for cell in row %}
-                            <td>{{ cell }}</td>
+                        {% if page_obj.object_list %}
+                            {% for col in page_obj.object_list.0.keys %}
+                                <th>{{ col }}</th>
+                            {% endfor %}
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in page_obj.object_list %}
+                    <tr>
+                        {% for value in row.values %}
+                            <td>{{ value }}</td>
                         {% endfor %}
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    {% empty %}
+                    <tr><td colspan="100%">No data available</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div></center>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page=1">First</a>
+                <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}">Last</a>
+            {% endif %}
+        </div>
     {% endif %}
+
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            let filterSelect = document.getElementById("filter_type");
+            let columnSelect = document.getElementById("column_select");
+    
+            function toggleColumnSelect() {
+                if (filterSelect.value === "column") {
+                    columnSelect.style.display = "block";
+                } else {
+                    columnSelect.style.display = "none";
+                }
+            }
+    
+            filterSelect.addEventListener("change", toggleColumnSelect);
+            toggleColumnSelect();  // Call initially to set correct state
+        });
+    </script>
+    
 
 </body>
 </html>
+
+
