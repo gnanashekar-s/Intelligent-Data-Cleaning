@@ -49,13 +49,22 @@
         {% csrf_token %}
         <input type="hidden" name="form_type" value="uploadform">
         <label for="dataset_type">Select Dataset type:</label>
-            <select name="dataset_type" id="dataset_type">
+            <select name="dataset_type" id="dataset_type" onchange="toggleUploadType()">
                 <option value="numeric">Numeric</option>
                 <option value="categorical">Categorical</option>
                 <option value="image">Image</option>
                 <option value="audio">Audio</option>
             </select>
-        <input type="file" name="csv_file" accept=".csv" required>
+            <div id="file_upload_section">
+                <label>Select File:</label>
+                <input type="file" name="file_upload" id="file_input" multiple>
+            </div>
+    
+            <!-- Folder Upload (For Audio Only) -->
+            <div id="folder_upload_section" style="display: none;">
+                <label>Select Folder:</label>
+                <input type="file" name="folder_upload" id="folder_input" webkitdirectory directory multiple>
+            </div>
         <button type="submit">Upload</button>
     </form>
 
@@ -145,6 +154,20 @@
             filterSelect.addEventListener("change", toggleColumnSelect);
             toggleColumnSelect();  // Call initially to set correct state
         });
+
+        function toggleUploadType() {
+            var datasetType = document.getElementById("dataset_type").value;
+            var fileSection = document.getElementById("file_upload_section");
+            var folderSection = document.getElementById("folder_upload_section");
+
+            if (datasetType === "audio") {
+                fileSection.style.display = "none";
+                folderSection.style.display = "block";
+            } else {
+                fileSection.style.display = "block";
+                folderSection.style.display = "none";
+            }
+        }
     </script>
     
 

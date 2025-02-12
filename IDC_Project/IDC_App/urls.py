@@ -4,8 +4,9 @@ from .views.preprocessing.image_preprocessing import image_preprocessing
 from .views.preprocessing.categorical_preprocessing import categorical_preprocessing
 from .views.preprocessing.numerical_preprocessing import numerical_preprocessing
 from .views.uploadAndView import UploadAndView,preprocessing_redirect
-
+from .views.home import home
 urlpatterns = [
+    path('' , home ,name = "home"),
     path('upload/', UploadAndView ,name = "upload"),
     path('preprocess/', preprocessing_redirect, name = "preprocess"),
     path('preprocess/numerical/', numerical_preprocessing, name='numerical_preprocessing'),
