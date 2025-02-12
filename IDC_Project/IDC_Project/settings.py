@@ -27,9 +27,10 @@ SECRET_KEY = "django-insecure-l2bzk4qf3-s6b#79(xg-vr)c#cn5mon37evc3+_p^3=clcnt4_
 DEBUG = True
 
 ALLOWED_HOSTS = []
+import os 
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [r"C:\Users\RAMKUMAR K\Desktop\Intelligent-Data-Cleaning\IDC_Project\IDC_App\static"]
 
-
-# Application definition
 
 INSTALLED_APPS = [
     "django.contrib.admin",

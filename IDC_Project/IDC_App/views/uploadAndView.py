@@ -1,18 +1,36 @@
-from django.shortcuts import render
+from django.shortcuts import render,redirect
 from django.core.paginator import Paginator
 import pandas as pd
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from io import StringIO
+
+def add_to_session(request, key, value):
+    """Helper function to add data to session."""
+    request.session[key] = value
+    request.session.modified = True  # Ensures session updates immediately
+
+
+def get_from_session(request, key, default=None):
+    """Helper function to retrieve data from session."""
+    return request.session.get(key, default)
+
+
+
 @csrf_exempt
 def UploadAndView(request):
     if request.method == "POST" and request.FILES.get("csv_file"):
+        form_type = request.POST.get("form_type")
+        if form_type == "uploadform":
+            print(request.POST.get("dataset_type"))  #[numeric,categorical,image,audio]
+        
         csv_file = request.FILES["csv_file"]
         df = pd.read_csv(csv_file)
-        request.session["columns"] = df.columns.tolist()
-        
-        request.session["csv_data"] = df.to_json(orient="records")  # Use records format
+        add_to_session(request,key="columns",value=df.columns.tolist())
+        add_to_session(request,key="csv_data",value=df.to_json(orient="records"))
+        add_to_session(request,key="dataset_type", value = request.POST.get('dataset_type'))
 
+    
     csv_data = request.session.get("csv_data", None)
     df = pd.read_json(StringIO(csv_data)) if csv_data else pd.DataFrame()   
     filter_type = request.POST.get("filter_type", "all")
@@ -39,3 +57,20 @@ def UploadAndView(request):
         "columns": request.session.get("columns", []),
         "selected_columns": selected_columns,  # Pass selected columns to template
     })
+
+
+
+def preprocessing_redirect(request):
+    dataset_type = get_from_session(request,key="dataset_type")
+    print(dataset_type)
+
+    if dataset_type == "audio":
+        return redirect('audio_preprocessing')
+    elif dataset_type == "image":
+        return redirect('image_preprocessing')
+    elif dataset_type == "categorical":
+        return redirect('categorical_preprocessing')
+    elif dataset_type == "numerical":
+        return redirect('numerical_preprocessing')
+
+    return redirect('upload')
