@@ -1,6 +1,34 @@
 <!DOCTYPE html>
 <html>
+    <style>
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: #007bff;  /* Blue background */
+            padding: 10px 0;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 15px;
+            border-radius: 5px;
+        }
+        nav a:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
     <body>
+        <nav>
+            <a href="{% url 'upload' %}">Upload</a> | 
+            <a href="{% url 'preprocess' %}">Preprocess</a>
+        </nav><br><br><br>
         <h1>
             IMAGE PREPROCESSING PAGE
         </h1>

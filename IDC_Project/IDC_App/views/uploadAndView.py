@@ -24,6 +24,37 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Get pr
 MEDIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'media')
 AUDIO_FOLDER_PATH = os.path.join(BASE_DIR, "media", "audio")
 
+import csv
+from django.http import HttpResponse
+
+import json
+
+def download_csv(request):
+    csv_data = get_from_session(request, "csv_data")
+
+    if csv_data:
+        dataset = json.loads(csv_data)  # Convert JSON string back to list of dictionaries
+        
+        if isinstance(dataset, str):  # Ensure dataset is properly loaded
+            dataset = json.loads(dataset)
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="output.csv"'
+        writer = csv.writer(response)
+
+        # Ensure dataset is a list of dictionaries before accessing keys()
+        if dataset and isinstance(dataset[0], dict):
+            writer.writerow(dataset[0].keys())  # Write column headers
+            for row in dataset:
+                writer.writerow(row.values())  # Write data rows
+        else:
+            return HttpResponse("Invalid dataset format", status=400)
+
+        return response
+
+    return HttpResponse("No CSV data available", status=400)
+
+
 
 @csrf_exempt
 def UploadAndView(request):
@@ -50,14 +81,13 @@ def UploadAndView(request):
                         for chunk in file.chunks():
                             destination.write(chunk)
                     uploaded_files.append(file_path)
-                audio_df = extract_audio_features(r"C:\Users\RAMKUMAR K\Desktop\Intelligent-Data-Cleaning\IDC_Project\media\audio")
+                audio_df = extract_audio_features(audio_dir)
                 add_to_session(request, "columns", audio_df.columns.tolist())
                 add_to_session(request, "csv_data", audio_df.to_json(orient="records"))
                 
-                
-
-            else:
-                file = request.FILES.get("file_upload")  # Get single file upload
+            
+            elif "file_upload" in request.FILES:
+                file = request.FILES["file_upload"] # Get single file upload
                 
                 if not file:
                     return redirect("upload")
@@ -74,7 +104,8 @@ def UploadAndView(request):
 
                 # Process CSV or Excel files
                 if file_extension in [".csv", ".xlsx"]:
-                    df = pd.read_csv(file) if file_extension == ".csv" else pd.read_excel(file)
+                    print(file)
+                    df = pd.read_csv(file_full_path) if file_extension == ".csv" else pd.read_excel(file)
                     add_to_session(request, "columns", df.columns.tolist())
                     add_to_session(request, "csv_data", df.to_json(orient="records"))
                     add_to_session(request, "dataset_type", dataset_type)
@@ -125,9 +156,7 @@ def preprocessing_redirect(request):
         return redirect('image_preprocessing')
     elif dataset_type == "categorical":
         return redirect('categorical_preprocessing')
-    elif dataset_type == "numerical":
+    elif dataset_type == "numeric":
         return redirect('numerical_preprocessing')
 
     return redirect('upload')
-
-

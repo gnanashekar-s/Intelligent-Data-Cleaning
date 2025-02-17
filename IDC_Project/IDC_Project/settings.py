@@ -30,8 +30,7 @@ DEBUG = True
 ALLOWED_HOSTS = []
 import os 
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [r"C:\Users\RAMKUMAR K\Desktop\Intelligent-Data-Cleaning\IDC_Project\IDC_App\static"]
-
+STATICFILES_DIRS = [os.path.join(BASE_DIR, "IDC_App", "static")]
 
 INSTALLED_APPS = [
     "django.contrib.admin",

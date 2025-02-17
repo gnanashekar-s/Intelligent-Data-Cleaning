@@ -95,6 +95,10 @@
         </form>
 
         <h3>Filtered Data</h3>
+        <!-- Download CSV Button -->
+        <form method="GET" action="{% url 'download_csv' %}">
+            <button type="submit">Download CSV</button>
+        </form>
         <center>
         <div class="table-container">
             <table>
