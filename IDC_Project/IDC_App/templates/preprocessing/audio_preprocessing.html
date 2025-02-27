@@ -1,5 +1,11 @@
-<!DOCTYPE html>
-<html>
+{% load static %}
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Preprocessing</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'styles.css' %}">
     <style>
         nav {
             position: fixed;
@@ -24,15 +30,163 @@
             background: rgba(255, 255, 255, 0.2);
         }
     </style>
+</head>
+<body>
 
-    <body>
-        <nav>
-            <a href="{% url 'upload' %}">Upload</a> | 
-            <a href="{% url 'preprocess' %}">Preprocess</a>
-        </nav><br><br><br>
+    <nav>
+        <a href="{% url 'upload' %}">Upload</a> |
+        <a href="{% url 'preprocess' %}">Preprocess</a>
+    </nav>
+
+    <br><br><br>
+
+    <h2>Audio Preprocessing</h2>
+
+    <form method="POST" action="audio_preprocessing" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="audio_input">Select Audio File:</label>
+        <input type="file" id="audio_input" name="audio_input" accept="audio/*" required>
         
-        <h1>
-            AUDIO PREPROCESSING PAGE
-        </h1>
-    </body>
+        <button type="submit" name="action" value="upload_audio">Upload Audio</button>
+    </form>
+
+    {% if audio_file %}
+        <h3>Audio File Preview</h3>
+        <audio controls>
+            <source src="{{ audio_file.url }}" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+
+
+        <h3>Feature Visualization</h3>
+        <!-- You can add visualizations or controls for parallel preprocessing here -->
+        <!-- For example: -->
+        <div id="feature_visualization">
+            <form method="POST">
+                {% csrf_token %}
+                <label for="features">Select Features to Plot:</label>
+                <select name="features" multiple>
+                    <option value="waveform">Waveform</option>
+                    <option value="spectrogram">Spectrogram</option>
+                    <option value="mfcc">MFCC</option>
+                    <option value="chroma">Chroma</option>
+                </select>
+                <button type="submit" name="action" value="vizualiize_features">Generate Plot</button>
+            </form>
+            
+            <!-- Display the generated plots -->
+            {% if plot_urls %}
+                <h3>Generated Plots</h3>
+                {% for url in plot_urls %}
+                    <img src="{{ url }}" alt="Feature Plot">
+                {% endfor %}
+            {% endif %}
+        </div>
+        
+
+        <form method="POST" action="audio_preprocessing">
+            {% csrf_token %}
+            <button type="submit" name="action" value="add_to_dataset" >Add to Dataset</button>
+        </form>
+        
+
+    {% endif %}
+    <center>
+        <label class="switch">
+            <input type="checkbox" id="toggle-dataset" onchange="toggleDataset()">
+            <span class="slider round"></span>
+        </label>
+        <span>View Dataset</span>
+    {% if page_obj %}
+
+    
+
+    <div id="table-container">
+        <table border="1">
+            <thead>
+                <tr>
+                    {% for key in page_obj.object_list.0.keys %}
+                        <th>{{ key }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in page_obj.object_list %}
+                <tr>
+                    {% for value in row.values %}
+                        <td>{{ value }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    <div id="pagination-container">
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="#" onclick="loadPage(1)">First</a>
+                <a href="#" onclick="loadPage({{ page_obj.previous_page_number }})">Previous</a>
+            {% endif %}
+    
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    
+            {% if page_obj.has_next %}
+                <a href="#" onclick="loadPage({{ page_obj.next_page_number }})">Next</a>
+                <a href="#" onclick="loadPage({{ page_obj.paginator.num_pages }})">Last</a>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+    
+    
+    
+    
+    {% endif %}
+
+
+    <!-- Optionally add a button to download dataset -->
+     <br>
+    <form method="GET" action="{% url 'download_csv' %}">
+        <button type="submit">Download Dataset</button>
+    </form>
+
+</body>
 </html>
+
+<script>
+    function loadPage(page) {
+        fetch(`?page=${page}`, {
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            let parser = new DOMParser();
+            let doc = parser.parseFromString(html, "text/html");
+
+            // ✅ Update only the table and pagination content
+            document.getElementById("table-container").innerHTML = doc.getElementById("table-container").innerHTML;
+            document.getElementById("pagination-container").innerHTML = doc.getElementById("pagination-container").innerHTML;
+        })
+        .catch(error => console.error("Error loading page:", error));
+    }
+</script>
+
+
+
+<script>
+    function toggleDataset() {
+        let datasetContainer = document.getElementById("table-container");
+        let toggleSwitch = document.getElementById("toggle-dataset");
+
+        if (toggleSwitch.checked) {
+            datasetContainer.style.display = "block"; // Show table
+        } else {
+            datasetContainer.style.display = "none"; // Hide table
+        }
+    }
+</script>

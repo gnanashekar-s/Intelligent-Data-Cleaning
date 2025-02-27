@@ -5,6 +5,9 @@ from .views.preprocessing.categorical_preprocessing import categorical_preproces
 from .views.preprocessing.numerical_preprocessing import numerical_preprocessing
 from .views.uploadAndView import UploadAndView,preprocessing_redirect,download_csv
 from .views.home import home
+from django.conf import settings
+from django.conf.urls.static import static
+
 urlpatterns = [
     path('' , home ,name = "home"),
     path('upload/', UploadAndView ,name = "upload"),
@@ -15,3 +18,4 @@ urlpatterns = [
     path('preprocess/categorical/', categorical_preprocessing, name='categorical_preprocessing'),
     path('download_csv/', download_csv, name='download_csv'),
 ]
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
