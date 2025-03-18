@@ -29,6 +29,61 @@
         nav a:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Space between text and toggle */
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 25px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 25px;
+        }
+        
+        .slider:before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(25px);
+        }
+        
     </style>
 </head>
 <body>
@@ -42,7 +97,7 @@
 
     <h2>Audio Preprocessing</h2>
 
-    <form method="POST" action="audio_preprocessing" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         <label for="audio_input">Select Audio File:</label>
         <input type="file" id="audio_input" name="audio_input" accept="audio/*" required>
@@ -84,24 +139,33 @@
         </div>
         
 
-        <form method="POST" action="audio_preprocessing">
+        <form method="POST" >
             {% csrf_token %}
             <button type="submit" name="action" value="add_to_dataset" >Add to Dataset</button>
+        </form>
+        <form method="GET" action="{% url 'download_csv' %}">
+            <button type="submit">Download Dataset</button>
         </form>
         
 
     {% endif %}
     <center>
-        <label class="switch">
-            <input type="checkbox" id="toggle-dataset" onchange="toggleDataset()">
-            <span class="slider round"></span>
-        </label>
-        <span>View Dataset</span>
+    
+        <div class="toggle-container">
+            <span class="toggle-text">View Table:</span>
+            <label class="switch">
+                <input type="checkbox" id="toggleSwitch" onchange="toggleDataset()">
+                <span class="slider"></span>
+            </label>
+        </div>
+    
+    
+        
     {% if page_obj %}
 
     
 
-    <div id="table-container">
+    <div id="table-container" style="overflow-x: auto; max-width: 100%;">
         <table border="1">
             <thead>
                 <tr>
@@ -120,6 +184,7 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
 
     <div id="pagination-container">
         <div class="pagination">
@@ -136,19 +201,14 @@
             {% endif %}
         </div>
     </div>
-    </div>
-    
     
     
     
     {% endif %}
 
 
-    <!-- Optionally add a button to download dataset -->
-     <br>
-    <form method="GET" action="{% url 'download_csv' %}">
-        <button type="submit">Download Dataset</button>
-    </form>
+    
+    
 
 </body>
 </html>
@@ -181,12 +241,15 @@
 <script>
     function toggleDataset() {
         let datasetContainer = document.getElementById("table-container");
-        let toggleSwitch = document.getElementById("toggle-dataset");
+        let paginationContainer = document.getElementById("pagination-container");
+        let toggleSwitch = document.getElementById("toggleSwitch");
 
         if (toggleSwitch.checked) {
             datasetContainer.style.display = "block"; // Show table
+            paginationContainer.style.display = "block";
         } else {
             datasetContainer.style.display = "none"; // Hide table
+            paginationContainer.style.display = "none";
         }
     }
 </script>

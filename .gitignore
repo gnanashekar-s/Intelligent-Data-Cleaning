@@ -4,3 +4,7 @@
 /IDC_Project/media/
 /IDC_Project/staticfiles/
 /AudioDataset/
+*.pyc
+**/__pycache__/
+/Audio_datas/
+/clearsession.py
