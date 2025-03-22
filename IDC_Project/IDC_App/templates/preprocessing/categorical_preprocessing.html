@@ -1,36 +1,289 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <title>Data Preprocessing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: #007bff;  /* Blue background */
-            padding: 10px 0;
-            text-align: center;
-            font-size: 18px;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        .nav-container { background: #f8f9fa; padding: 10px; margin-bottom: 20px; }
+        .nav-link { color: #0d6efd; font-weight: 500; }
+        .null-count { color: #dc3545; font-size: 0.8rem; }
+        .form-section { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .preview-table { max-height: 500px; overflow-y: auto; }
+        .pagination-nav { margin: 15px 0; }
+        .download-btn { background: #28a745; color: white; padding: 8px 16px; border-radius: 4px; border: none; }
+        .history-btn { margin-right: 10px; }
+        .error-msg { color: #dc3545; margin-top: 5px; }
+        .warning-box { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        @media (max-width: 768px) { 
+            .responsive-col { margin-bottom: 15px; }
+            .nav-links { flex-direction: column; }
         }
-        nav a {
+        .remove-outliers-btn {
+            background-color: #dc3545;
             color: white;
-            text-decoration: none;
-            margin: 0 15px;
-            padding: 8px 15px;
-            border-radius: 5px;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
         }
-        nav a:hover {
-            background: rgba(255, 255, 255, 0.2);
+        .remove-outliers-btn:hover {
+            background-color: #c82333;
         }
     </style>
-    <body>
-        <nav>
-            <a href="{% url 'upload' %}">Upload</a> | 
-            <a href="{% url 'preprocess' %}">Preprocess</a>
-        </nav><br><br><br>
-        <h1>
-            TEXT PREPROCESSING PAGE
-        </h1>
-    </body>
+</head>
+<body>
+    <div class="nav-container">
+        <nav class="container d-flex justify-content-between align-items-center nav-links">
+            <div>
+                <a class="nav-link" href="{% url 'upload' %}">📁 Upload</a>
+            </div>
+            {% if history_count > 0 %}
+            <form method="post" class="d-flex align-items-center">
+                {% csrf_token %}
+                <button class="btn btn-secondary history-btn" type="submit" name="undo">
+                    ⏪ Undo Last Change
+                </button>
+                <span class="text-muted">({{ history_count }} changes available)</span>
+            </form>
+            {% endif %}
+        </nav>
+    </div>
+
+    <div class="container mt-4">
+        {% if error %}
+        <div class="alert alert-danger">
+            {{ error }}
+            {% if invalid_columns %}
+            <br>Invalid columns: {{ invalid_columns|join:", " }}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <h2 class="mb-4">Data Preprocessing</h2>
+        <!-- Outlier Removal Section -->
+        <div class="form-section">
+            <h4>Remove Outliers</h4>
+            <div class="warning-box">
+                <strong>⚠️ Outlier Removal Guidelines:</strong>
+                <ul class="mb-0">
+                    <li><strong>Z-Score Method:</strong> Removes rows with Z-score greater than 3 or less than -3</li>
+                    <li><strong>IQR Method:</strong> Removes rows outside the range of 1.5 * IQR from the 1st and 3rd quartiles</li>
+                </ul>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-4">
+                        <select class="form-select" name="outlier_method">
+                            <option value="zscore">Z-Score Method</option>
+                            <option value="iqr">IQR Method</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-danger w-100" type="submit" name="remove_outliers">Remove Outliers</button>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    {% for column in numeric_columns %}
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" 
+                               name="outlier_columns" value="{{ column }}">
+                        <label class="form-check-label">{{ column }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+        <!-- Missing Value Handling -->
+        <div class="form-section">
+            <h4>Handle Missing Values <small class="text-muted">(Null counts shown below columns)</small></h4>
+            <form method="post">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-4 responsive-col">
+                        <select class="form-select mb-3" name="null_method">
+                            <option value="mean">Fill Numerical with Mean</option>
+                            <option value="median">Fill Numerical with Median</option>
+                            <option value="mode">Fill Categorical with Mode</option>
+                            <option value="custom">Fill with Custom Value</option>
+                            <option value="remove">Remove Rows</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 responsive-col">
+                        <input type="text" class="form-control" name="custom_value" 
+                               placeholder="Custom value" disabled>
+                    </div>
+                    <div class="col-md-4 responsive-col">
+                        <button class="btn btn-primary w-100" type="submit" name="handle_nulls">Apply</button>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    {% for column, null_count in columns_with_nulls %}
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" 
+                               name="columns" value="{{ column }}" id="{{ column }}">
+                        <label class="form-check-label" for="{{ column }}">
+                            {{ column }} <span class="null-count">({{ null_count }} nulls)</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+
+        <!-- Encoding Section -->
+        <div class="form-section">
+            <div class="warning-box">
+                <strong>📚 Encoding Guidelines</strong>
+                <ul class="mb-0">
+                    <li><strong>Label Encoding:</strong> For ordinal data or tree-based models</li>
+                    <li><strong>One-Hot Encoding:</strong> For nominal data or linear models</li>
+                </ul>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-4 responsive-col">
+                        <select class="form-select" name="encode_method">
+                            <option value="label">Label Encoding</option>
+                            <option value="onehot">One-Hot Encoding</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 responsive-col">
+                        <button class="btn btn-primary w-100" type="submit" name="encode">Apply Encoding</button>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    {% for column in categorical_columns %}
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" 
+                               name="encode_columns" value="{{ column }}">
+                        <label class="form-check-label">{{ column }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+
+        <!-- Value Removal Section -->
+        <div class="form-section">
+            <h4>Remove Specific Values</h4>
+            <div class="warning-box">
+                <strong>⚠️ Important Notes:</strong>
+                <ul class="mb-0">
+                    <li>Works for exact matches only</li>
+                    <li>Case-sensitive comparisons</li>
+                    <li>Use "nan" to remove missing values</li>
+                </ul>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-4 responsive-col">
+                        <input type="text" class="form-control" name="remove_value"
+                               placeholder="Enter value to remove" required>
+                            </div>
+                            <div class="col-md-4 responsive-col">
+                                <div class="form-check advanced-options">
+                                    <input class="form-check-input" type="checkbox" name="exact_match" id="exact_match" checked>
+                                    <label class="form-check-label" for="exact_match">
+                                        Exact match
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 responsive-col">
+                                <button class="btn btn-danger w-100" type="submit" name="remove_values">Remove Values</button>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            {% for column, null_count in columns_with_nulls %}
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" 
+                                       name="remove_columns" value="{{ column }}">
+                                <label class="form-check-label">
+                                    {{ column }} <span class="null-count">({{ null_count }} nulls)</span>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </form>
+                </div>
+
+        <!-- Data Preview -->
+        <div class="form-section">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4>Data Preview</h4>
+                <form method="GET" action="{% url 'download_csv' %}">
+                    <button type="submit" class="download-btn">💾 Download CSV</button>
+                </form>
+            </div>
+
+            <nav class="pagination-nav">
+                <ul class="pagination">
+                    <li class="page-item {% if not prev_page %}disabled{% endif %}">
+                        <a class="page-link" href="?page=1">First</a>
+                    </li>
+                    <li class="page-item {% if not prev_page %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ prev_page }}">Previous</a>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">{{ current_page }}</span>
+                    </li>
+                    <li class="page-item {% if not next_page %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ next_page }}">Next</a>
+                    </li>
+                    <li class="page-item {% if not next_page %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ total_pages }}">Last</a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="preview-table">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            {% for column in columns %}
+                            <th>{{ column }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in page_data %}
+                        <tr>
+                            {% for value in row %}
+                            <td>
+                                {% if value is None %}
+                                    NaN
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toggle custom value input
+        const nullMethod = document.querySelector('[name="null_method"]');
+        const customInput = document.querySelector('[name="custom_value"]');
+        
+        nullMethod.addEventListener('change', () => {
+            customInput.disabled = nullMethod.value !== 'custom';
+            if (!customInput.disabled) customInput.focus();
+        });
+
+        // Initialize state on page load
+        customInput.disabled = nullMethod.value !== 'custom';
+    </script>
+</body>
 </html>

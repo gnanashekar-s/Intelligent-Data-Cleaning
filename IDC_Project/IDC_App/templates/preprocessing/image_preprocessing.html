@@ -1,36 +1,432 @@
+{% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Dataset Preprocessing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
-        nav {
-            position: fixed;
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        .preview-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .preview-img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            margin-left: 10px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
             top: 0;
             left: 0;
-            width: 100%;
-            background: #007bff;  /* Blue background */
-            padding: 10px 0;
-            text-align: center;
-            font-size: 18px;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
         }
-        nav a {
-            color: white;
-            text-decoration: none;
-            margin: 0 15px;
-            padding: 8px 15px;
-            border-radius: 5px;
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
         }
-        nav a:hover {
-            background: rgba(255, 255, 255, 0.2);
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(20px);
         }
     </style>
-    <body>
-        <nav>
-            <a href="{% url 'upload' %}">Upload</a> | 
-            <a href="{% url 'preprocess' %}">Preprocess</a>
-        </nav><br><br><br>
-        <h1>
-            IMAGE PREPROCESSING PAGE
-        </h1>
-    </body>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+    <div class="w-full max-w-4xl bg-white shadow-xl rounded-xl overflow-hidden mx-auto">
+        <!-- Header -->
+        <div class="bg-blue-600 text-white p-6">
+            <h1 class="text-2xl font-bold">Image Dataset Preprocessing</h1>
+            <p class="text-blue-100">Advanced Preprocessing Techniques</p>
+        </div>
+        <!-- Main Content -->
+        <div class="p-6">
+            <!-- Dataset Upload -->
+            <form method="POST" enctype="multipart/form-data" class="mb-6">
+                {% csrf_token %}
+                <label class="block text-gray-700 font-bold mb-2">
+                    Upload Image Dataset
+                </label>
+                <input 
+                    type="file" 
+                    id="datasetUpload" 
+                    name="datasetUpload"
+                    webkitdirectory 
+                    directory 
+                    multiple 
+                    class="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100"
+                >
+                <div class="mt-2 text-right">
+                    <button type="submit" name="action" value="upload_dataset" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all text-sm">
+                        Upload Files
+                    </button>
+                </div>
+            </form>
+
+            <!-- Preview Section -->
+            {% if preview_images %}
+            <div class="mb-6 bg-gray-50 p-4 rounded-lg">
+                <h2 class="text-lg font-semibold mb-2">Dataset Preview</h2>
+                <p class="text-sm text-gray-500 mb-4">Showing {{ preview_images|length }} of {{ total_uploaded }} uploaded images</p>
+                <div class="preview-grid">
+                    {% for img in preview_images %}
+                    <div class="preview-card">
+                        <img src="{{ img.url }}" alt="{{ img.name }}" class="preview-img">
+                        <div class="p-2">
+                            <p class="text-xs truncate">{{ img.name }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Preprocessing Options Form -->
+            <form method="POST" class="mb-6">
+                {% csrf_token %}
+                <div id="preprocessingOptions" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Resize -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-gray-700">Image Resizing</h3>
+                            <div class="tooltip">
+                                <i class="fas fa-info-circle text-blue-500 cursor-help"></i>
+                                <span class="tooltiptext">
+                                    Standardize image dimensions for consistent model input. 
+                                    Options include:
+                                    - Maintain aspect ratio
+                                    - Fixed size scaling
+                                    - Crop to center
+                                </span>
+                            </div>
+                        </div>
+                        <select name="resize_option" class="w-full p-2 border rounded">
+                            <option>No Resize</option>
+                            <option>Resize to 224x224</option>
+                            <option>Resize to 299x299</option>
+                            <option>Custom Size</option>
+                        </select>
+                    </div>
+                    <!-- Color Space -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-gray-700">Color Transformation</h3>
+                            <div class="tooltip">
+                                <i class="fas fa-info-circle text-blue-500 cursor-help"></i>
+                                <span class="tooltiptext">
+                                    Convert image color spaces for different model requirements:
+                                    - RGB to Grayscale
+                                    - RGB to HSV
+                                    - Normalize color channels
+                                    - Remove color bias
+                                </span>
+                            </div>
+                        </div>
+                        <select name="color_option" class="w-full p-2 border rounded">
+                            <option>Maintain Original</option>
+                            <option>Convert to Grayscale</option>
+                            <option>Normalize Colors</option>
+                            <option>HSV Conversion</option>
+                        </select>
+                    </div>
+                    <!-- Augmentation -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-gray-700">Data Augmentation</h3>
+                            <div class="tooltip">
+                                <i class="fas fa-info-circle text-blue-500 cursor-help"></i>
+                                <span class="tooltiptext">
+                                    Increase dataset diversity and model robustness:
+                                    - Random Flip
+                                    - Rotation
+                                    - Brightness/Contrast
+                                    - Random Crop
+                                    - Noise Injection
+                                </span>
+                            </div>
+                        </div>
+                        <select name="augmentation_option" class="w-full p-2 border rounded">
+                            <option>No Augmentation</option>
+                            <option>Right Augmentation</option>
+                            <option>Left Augmentation</option>
+                            <option>Custom Augmentation</option>
+                        </select>
+                    </div>
+                    <!-- Normalization -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-gray-700">Normalization</h3>
+                            <div class="tooltip">
+                                <i class="fas fa-info-circle text-blue-500 cursor-help"></i>
+                                <span class="tooltiptext">
+                                    Standardize pixel values for neural network training:
+                                    - Min-Max Scaling
+                                    - Z-Score Normalization
+                                    - Per-Channel Normalization
+                                    - Global Contrast Normalization
+                                </span>
+                            </div>
+                        </div>
+                        <select name="normalization_option" class="w-full p-2 border rounded">
+                            <option>No Normalization</option>
+                            <option>Min-Max Scaling</option>
+                            <option>Z-Score Normalization</option>
+                            <option>ImageNet Normalization</option>
+                        </select>
+                    </div>
+                    <!-- Noise Reduction -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-gray-700">Noise Reduction</h3>
+                            <div class="tooltip">
+                                <i class="fas fa-info-circle text-blue-500 cursor-help"></i>
+                                <span class="tooltiptext">
+                                    Remove image noise and artifacts:
+                                    - Gaussian Blur
+                                    - Median Filter
+                                    - Bilateral Filtering
+                                    - Non-local Means Denoising
+                                </span>
+                            </div>
+                        </div>
+                        <select name="noise_reduction_option" class="w-full p-2 border rounded">
+                            <option>No Noise Reduction</option>
+                            <option>Light Smoothing</option>
+                            <option>Medium Denoising</option>
+                            <option>Advanced Filtering</option>
+                        </select>
+                    </div>
+                    <!-- Format Conversion -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-gray-700">Format Conversion</h3>
+                            <div class="tooltip">
+                                <i class="fas fa-info-circle text-blue-500 cursor-help"></i>
+                                <span class="tooltiptext">
+                                    Convert image formats for compatibility:
+                                    - PNG to JPEG
+                                    - JPEG to WebP
+                                    - Compress Images
+                                    - Consistent File Format
+                                </span>
+                            </div>
+                        </div>
+                        <select name="format_option" class="w-full p-2 border rounded">
+                            <option>Maintain Original</option>
+                            <option>Convert to JPEG</option>
+                            <option>Convert to PNG</option>
+                            <option>Compress Images</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Preprocessing Button -->
+                <div class="mt-6 text-center">
+                    <button name="action" value="start_preprocessing" class="bg-blue-600 text-white px-8 py-3 rounded-full hover:bg-blue-700 transition-all">
+                        Start Preprocessing
+                    </button>
+                </div>
+            </form>
+
+            <!-- Results Section -->
+            {% if processed_previews %}
+            <div class="mt-8 border-t pt-6">
+                <h2 class="text-xl font-bold mb-4">Preprocessing Results</h2>
+                <p class="text-gray-600 mb-4">Successfully processed {{ total_processed }} images</p>
+                
+                <!-- Comparison Grid -->
+                <div class="mb-6">
+                    <h3 class="font-semibold mb-2">Before & After Comparison</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {% for img in processed_previews %}
+                        <div class="border rounded-lg overflow-hidden">
+                            <div class="grid grid-cols-2 gap-2 p-2">
+                                <div>
+                                    <p class="text-sm font-medium text-center mb-1">Original</p>
+                                    <img src="{{ img.original }}" class="w-full h-32 object-cover rounded">
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-center mb-1">Processed</p>
+                                    <img src="{{ img.url }}" class="w-full h-32 object-cover rounded">
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-2">
+                                <p class="text-xs truncate">{{ img.name }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Download button -->
+                <form method="POST" class="mb-6">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="download_dataset" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-all">
+                        <i class="fas fa-download mr-2"></i> Download Processed Dataset
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Dataset Table -->
+            {% if page_obj %}
+            <div class="mt-8 border-t pt-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Dataset Information</h2>
+                    <div class="toggle-container">
+                        <span class="toggle-text text-sm">View Table:</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleSwitch" onchange="toggleDataset()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="table-container" style="display: none;" class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200">
+                        <thead>
+                            <tr>
+                                <th class="py-2 px-4 border-b text-left">Filename</th>
+                                <th class="py-2 px-4 border-b text-left">Original Size</th>
+                                <th class="py-2 px-4 border-b text-left">Processed Size</th>
+                                <th class="py-2 px-4 border-b text-left">Color</th>
+                                <th class="py-2 px-4 border-b text-left">Normalization</th>
+                                <th class="py-2 px-4 border-b text-left">Noise Reduction</th>
+                                <th class="py-2 px-4 border-b text-left">Format</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in page_obj %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="py-2 px-4 border-b">{{ item.filename }}</td>
+                                <td class="py-2 px-4 border-b">{{ item.original_size }}</td>
+                                <td class="py-2 px-4 border-b">{{ item.processed_size }}</td>
+                                <td class="py-2 px-4 border-b">{{ item.color_transform }}</td>
+                                <td class="py-2 px-4 border-b">{{ item.normalization }}</td>
+                                <td class="py-2 px-4 border-b">{{ item.noise_reduction }}</td>
+                                <td class="py-2 px-4 border-b">{{ item.format }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    <!-- Pagination -->
+                    <div class="mt-4 flex justify-center">
+                        <div class="inline-flex rounded-md shadow-sm">
+                            {% if page_obj.has_previous %}
+                            <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-gray-300 rounded-l-md hover:bg-gray-100">
+                                Previous
+                            </a>
+                            {% else %}
+                            <span class="px-4 py-2 text-sm font-medium text-gray-400 bg-white border border-gray-300 rounded-l-md cursor-not-allowed">
+                                Previous
+                            </span>
+                            {% endif %}
+                            
+                            <span class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border-t border-b border-gray-300">
+                                {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                            </span>
+                            
+                            {% if page_obj.has_next %}
+                            <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-gray-300 rounded-r-md hover:bg-gray-100">
+                                Next
+                            </a>
+                            {% else %}
+                            <span class="px-4 py-2 text-sm font-medium text-gray-400 bg-white border border-gray-300 rounded-r-md cursor-not-allowed">
+                                Next
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Footer -->
+        <div class="bg-gray-50 p-4 text-center border-t">
+            <p class="text-sm text-gray-600">Image Dataset Preprocessing Tool</p>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script>
+        function toggleDataset() {
+            const tableContainer = document.getElementById('table-container');
+            if (tableContainer.style.display === 'none') {
+                tableContainer.style.display = 'block';
+            } else {
+                tableContainer.style.display = 'none';
+            }
+        }
+        
+        // Display file count when selecting files
+        document.getElementById('datasetUpload').addEventListener('change', function(e) {
+            const fileCount = e.target.files.length;
+            if (fileCount > 0) {
+                console.log(${fileCount} files selected);
+            }
+        });
+    </script>
+</body>
 </html>
