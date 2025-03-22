@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <title>Dataset Upload & Preprocessing</title>
     <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
         nav {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            background: #007bff;  /* Blue background */
+            background: #007bff;
             padding: 10px 0;
             text-align: center;
             font-size: 18px;
@@ -23,14 +26,120 @@
         nav a:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+        .container {
+            margin-top: 60px;
+            width: 80%;
+            margin: 0 auto;
+        }
+        table {
+            width: 100%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+        }
+        button {
+            margin: 10px;
+            padding: 10px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .pagination {
+            margin: 20px 0;
+        }
+        .pagination a {
+            margin: 0 5px;
+            padding: 5px 10px;
+            text-decoration: none;
+            background: #007bff;
+            color: white;
+            border-radius: 5px;
+        }
+        .pagination a:hover {
+            background: #0056b3;
+        }
     </style>
-    <body>
-        <nav>
-            <a href="{% url 'upload' %}">Upload</a> | 
-            <a href="{% url 'preprocess' %}">Preprocess</a>
-        </nav><br><br><br>
-        <h1>
-            NUMERICAL PREPROCESSING PAGE
-        </h1>
-    </body>
+</head>
+<body>
+
+    <nav>
+        <a href="{% url 'upload' %}">Upload</a> | 
+        <a href="{% url 'preprocess' %}">Preprocess</a>
+    </nav>
+    <br><br>
+    <div class="container">
+        
+        <h1>Preprocess Your Dataset</h1>
+
+        {% if description %}
+            <h2>Dataset Description</h2>
+            <table>
+                <tr>
+                    <th>Column</th>
+                    <th>Mean</th>
+                    <th>Median</th>
+                    <th>Mode</th>
+                </tr>
+                {% for col, stats in description.items %}
+                    <tr>
+                        <td>{{ col }}</td>
+                        <td>{{ stats.mean }}</td>
+                        <td>{{ stats.median }}</td>
+                        <td>{{ stats.mode }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+
+            <h2>Preprocessing Steps</h2>
+            <form method="POST">
+                {% csrf_token %}
+                <button type="submit" name="action" value="handle_missing">Handle Missing Values</button>
+                <button type="submit" name="action" value="normalize">Normalization</button>
+                <button type="submit" name="action" value="standardize">Standardization</button>
+                <button type="submit" name="action" value="remove_outliers">Remove Outliers</button>
+                <button type="submit" name="action" value="scale_features">Feature Scaling</button>
+            </form>
+
+            <h2>Dataset Preview</h2>
+            <table>
+                <tr>
+                    {% for col in dataset.paginator.object_list.0.keys %}
+                        <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+                {% for row in dataset %}
+                    <tr>
+                        {% for value in row.values %}
+                            <td>{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
+
+            <div class="pagination">
+                {% if dataset.has_previous %}
+                    <a href="?page=1">First</a>
+                    <a href="?page={{ dataset.previous_page_number }}">Previous</a>
+                {% endif %}
+                Page {{ dataset.number }} of {{ dataset.paginator.num_pages }}
+                {% if dataset.has_next %}
+                    <a href="?page={{ dataset.next_page_number }}">Next</a>
+                    <a href="?page={{ dataset.paginator.num_pages }}">Last</a>
+                {% endif %}
+            </div>
+        {% else %}
+            <h2>No dataset uploaded.</h2>
+        {% endif %}
+    </div>
+
+</body>
 </html>
