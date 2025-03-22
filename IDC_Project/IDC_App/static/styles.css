@@ -1,3 +1,105 @@
+.preprocessing-container {
+    background: #f8f9fa; /* Light gray background */
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 60%;
+    margin: auto;
+}
+
+.preprocessing-container h3 {
+    text-align: center;
+    color: #007bff;
+    margin-bottom: 15px;
+}
+
+.form-group {
+    display: flex;
+    justify-content: left;
+    align-items: center;
+    background: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.form-group label {
+    font-size: 16px;
+    color: #333;
+    flex: 1;
+}
+
+.form-group input {
+    width: 150px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    text-align: center;
+}
+
+button[type="submit"] {
+    display: block;
+    width: 100%;
+    background: #007bff;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s ease-in-out;
+}
+
+button[type="submit"]:hover {
+    background: #0056b3;
+}
+
+.audio-info-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px; /* Adjust spacing between columns */
+    width: 100%;
+}
+
+.audio-container {
+    flex: 1; /* Takes 50% of the width */
+    text-align: center;
+}
+
+.info-container {
+    flex: 1; /* Takes 50% of the width */
+    background: #f8f9fa; /* Light background */
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.info-container h3 {
+    color: #007bff; /* Blue heading */
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.info-container p {
+    font-size: 16px;
+    color: #333;
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.info-container p:last-child {
+    border-bottom: none;
+}
+
+.info-container span {
+    font-weight: bold;
+    color: #222;
+}
+
 /* General Styles */
 
 .switch {

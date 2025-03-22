@@ -29,6 +29,61 @@
         nav a:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Space between text and toggle */
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 25px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 25px;
+        }
+        
+        .slider:before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(25px);
+        }
+        
     </style>
 </head>
 <body>
@@ -42,7 +97,7 @@
 
     <h2>Audio Preprocessing</h2>
 
-    <form method="POST" action="audio_preprocessing" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         <label for="audio_input">Select Audio File:</label>
         <input type="file" id="audio_input" name="audio_input" accept="audio/*" required>
@@ -50,58 +105,161 @@
         <button type="submit" name="action" value="upload_audio">Upload Audio</button>
     </form>
 
+    
     {% if audio_file %}
+
         <h3>Audio File Preview</h3>
-        <audio controls>
-            <source src="{{ audio_file.url }}" type="audio/mpeg">
-            Your browser does not support the audio element.
-        </audio>
+        <div class="audio-info-container">
+            <!-- 🔹 Left Side: Audio File -->
+            <div class="audio-container">
+                <audio controls>
+                    <source src="{{ audio_file.url }}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        
+            <!-- 🔹 Right Side: Audio Information -->
+            <div class="info-container">
+                <h3>Audio Information</h3>
+                {% if audio_info %}
+                    <p><b>Duration:</b> <span>{{ audio_info.duration }} sec</span></p>
+                    <p><b>Sample Rate:</b> <span>{{ audio_info.sample_rate }} Hz</span></p>
+                    <p><b>Average Frequency Range:</b> <span>{{ audio_info.freq_range }} Hz</span></p>
+                    <p><b>RMS Energy:</b> <span>{{ audio_info.rms_energy }}</span></p>
+                    <p><b>Spectral Bandwidth:</b> <span>{{ audio_info.spectral_bandwidth }}</span></p>
+                    <p><b>Zero Crossing Rate:</b> <span>{{ audio_info.zero_crossing_rate }}</span></p>
+                    <p><b>Tempo (Beats per Minute):</b> <span>{{ audio_info.tempo }}</span></p>
+                {% endif %}
+            </div>
+        </div>
 
+        <h3>Preprocessing Options</h3>
 
-        <h3>Feature Visualization</h3>
-        <!-- You can add visualizations or controls for parallel preprocessing here -->
-        <!-- For example: -->
-        <div id="feature_visualization">
+        <div class="preprocessing-container">
             <form method="POST">
                 {% csrf_token %}
-                <label for="features">Select Features to Plot:</label>
+                
+                <!-- Noise Reduction -->
+                <div class="form-group">
+                    <label><input type="checkbox" name="preprocessing_steps" value="noise_reduction"> Noise Reduction</label>
+                    <input type="number" name="noise_strength" placeholder="Strength (0.01 - 1.0)" step="0.01">
+                </div>
+        
+                <!-- Low-Pass Filter -->
+                <div class="form-group">
+                    <label><input type="checkbox" name="preprocessing_steps" value="low_pass"> Low-Pass Filter</label>
+                    <input type="number" name="low_pass_cutoff" placeholder="Cutoff Frequency (Hz)">
+                </div>
+        
+                <!-- High-Pass Filter -->
+                <div class="form-group">
+                    <label><input type="checkbox" name="preprocessing_steps" value="high_pass"> High-Pass Filter</label>
+                    <input type="number" name="high_pass_cutoff" placeholder="Cutoff Frequency (Hz)">
+                </div>
+        
+                <!-- Pitch Shifting -->
+                <div class="form-group">
+                    <label><input type="checkbox" name="preprocessing_steps" value="pitch_shift"> Pitch Shift</label>
+                    <input type="number" name="pitch_steps" placeholder="Semitones (+/-)">
+                </div>
+        
+                <!-- Time Stretching -->
+                <div class="form-group">
+                    <label><input type="checkbox" name="preprocessing_steps" value="time_stretch"> Time Stretch</label>
+                    <input type="number" name="stretch_factor" placeholder="Factor (e.g., 0.8 for slow, 1.2 for fast)" step="0.1">
+                </div>
+        
+                <button type="submit" name="action" value="apply_preprocessing">Apply Preprocessing</button>
+            </form>
+        </div>
+
+
+
+            <h3>Audio Playback</h3>
+            <div style="display: flex; gap: 20px; justify-content: center; align-items: center;">
+                {% if audio_file %}
+                    <div>
+                        <h4>Original Audio</h4>
+                        <audio controls>
+                            <source src="{{ audio_file.url }}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                {% endif %}
+            
+                {% if processed_audio_file %}
+                    <div>
+                        <h4>Preprocessed Audio</h4>
+                        <audio controls>
+                            <source src="{{ processed_audio_file.url }}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <h3>Feature Visualization</h3>
+            <form method="POST">
+                {% csrf_token %}
+                <label for="features">Select Features to Plot:</label><br>
                 <select name="features" multiple>
                     <option value="waveform">Waveform</option>
                     <option value="spectrogram">Spectrogram</option>
                     <option value="mfcc">MFCC</option>
                     <option value="chroma">Chroma</option>
                 </select>
-                <button type="submit" name="action" value="vizualiize_features">Generate Plot</button>
+                <br>
+            
+                <button type="submit" name="action" value="visualize_features">Generate Plots</button>
             </form>
             
-            <!-- Display the generated plots -->
-            {% if plot_urls %}
-                <h3>Generated Plots</h3>
-                {% for url in plot_urls %}
-                    <img src="{{ url }}" alt="Feature Plot">
-                {% endfor %}
+            {% if original_plot_urls and processed_plot_urls %}
+                <h3>Feature Comparison</h3>
+                <div style="display: flex; gap: 20px;">
+                    <div style="width: 50%;">
+                        <h4>Original Audio Features</h4>
+                        {% for url in original_plot_urls %}
+                            <img src="{{ url }}" alt="Original Feature Plot" style="width: 100%;">
+                        {% endfor %}
+                    </div>
+                    <div style="width: 50%;">
+                        <h4>Preprocessed Audio Features</h4>
+                        {% for url in processed_plot_urls %}
+                            <img src="{{ url }}" alt="Processed Feature Plot" style="width: 100%;">
+                        {% endfor %}
+                    </div>
+                </div>
             {% endif %}
-        </div>
         
-
-        <form method="POST" action="audio_preprocessing">
+        <br>
+        <form method="POST" >
             {% csrf_token %}
             <button type="submit" name="action" value="add_to_dataset" >Add to Dataset</button>
+        </form>
+        <form method="GET" action="{% url 'download_csv' %}">
+            <button type="submit">Download Dataset</button>
         </form>
         
 
     {% endif %}
     <center>
-        <label class="switch">
-            <input type="checkbox" id="toggle-dataset" onchange="toggleDataset()">
-            <span class="slider round"></span>
-        </label>
-        <span>View Dataset</span>
+    
+        <div class="toggle-container">
+            <span class="toggle-text">View Table:</span>
+            <label class="switch">
+                <input type="checkbox" id="toggleSwitch" onchange="toggleDataset()">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </center>
+    
+    
+        
     {% if page_obj %}
 
     
 
-    <div id="table-container">
+    <div id="table-container" style="overflow-x: auto; max-width: 100%;">
         <table border="1">
             <thead>
                 <tr>
@@ -120,6 +278,7 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
 
     <div id="pagination-container">
         <div class="pagination">
@@ -136,19 +295,14 @@
             {% endif %}
         </div>
     </div>
-    </div>
-    
     
     
     
     {% endif %}
 
 
-    <!-- Optionally add a button to download dataset -->
-     <br>
-    <form method="GET" action="{% url 'download_csv' %}">
-        <button type="submit">Download Dataset</button>
-    </form>
+    
+    
 
 </body>
 </html>
@@ -181,12 +335,15 @@
 <script>
     function toggleDataset() {
         let datasetContainer = document.getElementById("table-container");
-        let toggleSwitch = document.getElementById("toggle-dataset");
+        let paginationContainer = document.getElementById("pagination-container");
+        let toggleSwitch = document.getElementById("toggleSwitch");
 
         if (toggleSwitch.checked) {
             datasetContainer.style.display = "block"; // Show table
+            paginationContainer.style.display = "block";
         } else {
             datasetContainer.style.display = "none"; // Hide table
+            paginationContainer.style.display = "none";
         }
     }
 </script>

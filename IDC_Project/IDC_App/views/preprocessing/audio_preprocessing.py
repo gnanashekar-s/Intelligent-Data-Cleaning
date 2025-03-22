@@ -6,6 +6,13 @@ import numpy as np
 import pandas as pd
 from django.core.paginator import Paginator
 import matplotlib.pyplot as plt
+import noisereduce as nr
+import soundfile as sf
+from scipy.signal import butter, lfilter
+
+import matplotlib
+matplotlib.use("Agg")  # ✅ Force Matplotlib to use a non-GUI backend
+import matplotlib.pyplot as plt
 
 def paginate(request):
     page_number = request.GET.get("page", 1)  
@@ -14,14 +21,80 @@ def paginate(request):
     page_obj = paginator.get_page(page_number)
     return page_obj
 
+
+def visualize_features(original_file_path,processed_file_path, features):
+    """
+    Generate feature plots for both original and processed audio.
+    Returns two lists of URLs: original and processed plots.
+    """
+    import librosa.display
+    import matplotlib.pyplot as plt
+
+    print("Original:",processed_file_path)
+    print("Processed:",original_file_path)
+    y_original, sr = librosa.load(original_file_path, sr=None)
+    y_processed, _ = librosa.load(processed_file_path, sr=None)
+
+    original_plot_urls = []
+    processed_plot_urls = []
+
+    for feature in features:
+        plt.figure(figsize=(8, 4))
+
+        # Original Audio Plot
+        if feature == "waveform":
+            librosa.display.waveshow(y_original, sr=sr)
+            plt.title("Waveform (Original)")
+        elif feature == "spectrogram":
+            S = librosa.amplitude_to_db(np.abs(librosa.stft(y_original)), ref=np.max)
+            librosa.display.specshow(S, sr=sr, x_axis="time", y_axis="log")
+            plt.title("Spectrogram (Original)")
+        elif feature == "mfcc":
+            mfccs = librosa.feature.mfcc(y=y_original, sr=sr, n_mfcc=13)
+            librosa.display.specshow(mfccs, sr=sr, x_axis="time")
+            plt.title("MFCC (Original)")
+        elif feature == "chroma":
+            chroma = librosa.feature.chroma_stft(y=y_original, sr=sr)
+            librosa.display.specshow(chroma, sr=sr, x_axis="time")
+            plt.title("Chroma (Original)")
+
+        original_plot_path = os.path.join(settings.MEDIA_ROOT, f"{feature}_original.png")
+        plt.savefig(original_plot_path)
+        plt.close()
+        original_plot_urls.append(settings.MEDIA_URL + f"{feature}_original.png")
+
+        # Processed Audio Plot
+        plt.figure(figsize=(8, 4))
+        if feature == "waveform":
+            librosa.display.waveshow(y_processed, sr=sr)
+            plt.title("Waveform (Processed)")
+        elif feature == "spectrogram":
+            S = librosa.amplitude_to_db(np.abs(librosa.stft(y_processed)), ref=np.max)
+            librosa.display.specshow(S, sr=sr, x_axis="time", y_axis="log")
+            plt.title("Spectrogram (Processed)")
+        elif feature == "mfcc":
+            mfccs = librosa.feature.mfcc(y=y_processed, sr=sr, n_mfcc=13)
+            librosa.display.specshow(mfccs, sr=sr, x_axis="time")
+            plt.title("MFCC (Processed)")
+        elif feature == "chroma":
+            chroma = librosa.feature.chroma_stft(y=y_processed, sr=sr)
+            librosa.display.specshow(chroma, sr=sr, x_axis="time")
+            plt.title("Chroma (Processed)")
+
+        processed_plot_path = os.path.join(settings.MEDIA_ROOT, f"{feature}_processed.png")
+        plt.savefig(processed_plot_path)
+        plt.close()
+        processed_plot_urls.append(settings.MEDIA_URL + f"{feature}_processed.png")
+
+    return original_plot_urls, processed_plot_urls
+
+
 def audio_preprocessing(request):
     audio_files = request.session.get('uploaded_audio_files', [])
     page_obj = paginate(request)
     request.session
     if request.method == "POST":
-
         action = request.POST.get("action")
-
         if action == "upload_audio":
             if request.FILES.get("audio_input"):
                 audio_file = request.FILES["audio_input"]
@@ -35,8 +108,8 @@ def audio_preprocessing(request):
                         destination.write(chunk)
                 
                 request.session["current_audio_file_path"] = f"/media/audio/{audio_file.name}"
-
-                return render(request, 'preprocessing/audio_preprocessing.html',{"audio_file":{"url":request.session.get("current_audio_file_path")},"page_obj":page_obj})
+                audio_info = analyze_audio(os.path.join(settings.MEDIA_ROOT, "audio", os.path.basename(request.session.get("current_audio_file_path", ""))))
+                return render(request, 'preprocessing/audio_preprocessing.html',{"audio_file":{"url":request.session.get("current_audio_file_path")},"page_obj":page_obj,"audio_info":audio_info})
     
         elif action == "add_to_dataset":
             print("Adding")
@@ -49,53 +122,107 @@ def audio_preprocessing(request):
             
             return render(request, 'preprocessing/audio_preprocessing.html',{"audio_file":{"url":request.session.get("current_audio_file_path")},"page_obj":page_obj})
 
-        elif action == "vizualiize_features":
-            features = request.POST.getlist("features") # Get selected features
-            file_path = request.session.get("current_audio_file_path")
-            filename = os.path.basename(file_path)
-            file_path = os.path.join(settings.MEDIA_ROOT, "audio", filename)
-            y, sr = librosa.load(file_path)
+        elif action == "visualize_features":
+            original_file_path = os.path.join(settings.MEDIA_ROOT, "audio", os.path.basename(request.session.get("current_audio_file_path")))
+            features = request.POST.getlist("features")
+            print(features)
 
-            plot_urls = []  # Store generated plot URLs
+            # Retrieve the latest processed audio path
+            processed_file_path = request.session.get("latest_processed_audio", original_file_path)
 
-            for feature in features:
-                plt.figure(figsize=(8, 4))
+            original_plot_urls, processed_plot_urls = visualize_features(original_file_path, processed_file_path, features)
 
-                if feature == "waveform":
-                    librosa.display.waveshow(y, sr=sr)
-                    plt.title("Waveform")
-                
-                elif feature == "spectrogram":
-                    S = librosa.amplitude_to_db(np.abs(librosa.stft(y)), ref=np.max)
-                    librosa.display.specshow(S, sr=sr, x_axis="time", y_axis="log")
-                    plt.title("Spectrogram")
-                
-                elif feature == "mfcc":
-                    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-                    librosa.display.specshow(mfccs, sr=sr, x_axis="time")
-                    plt.title("MFCC")
-                
-                elif feature == "chroma":
-                    chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-                    librosa.display.specshow(chroma, sr=sr, x_axis="time")
-                    plt.title("Chroma")
+            return render(request, "preprocessing/audio_preprocessing.html", {
+                "audio_file": {"url": request.session.get("current_audio_file_path")},
+                "processed_audio_file": {"url": settings.MEDIA_URL +"/audio/"+ os.path.basename(processed_file_path)},
+                "original_plot_urls": original_plot_urls,
+                "processed_plot_urls": processed_plot_urls,
+                "page_obj": paginate(request)
+            })
+        
+        if action == "apply_preprocessing":
+            original_file_path = os.path.join(settings.MEDIA_ROOT, "audio", os.path.basename(request.session.get("current_audio_file_path")))
 
-                # Save each plot separately
-                plot_path = os.path.join(settings.MEDIA_ROOT, f"{feature}.png")
-                plt.savefig(plot_path)
-                plt.close()
+            y, sr = librosa.load(original_file_path, sr=None)
 
-                # Append URL for display in the template
-                plot_urls.append(settings.MEDIA_URL + f"{feature}.png")
+            # Apply preprocessing (filters, noise reduction, etc.)
+            steps = request.POST.getlist("preprocessing_steps")
+            params = request.POST
+            y_processed = apply_preprocessing(y, sr, steps, params)
 
-            return render(request, "preprocessing/audio_preprocessing.html", {"audio_file":{"url":request.session.get("current_audio_file_path")},"page_obj":page_obj,"plot_urls": plot_urls})
+            # Save the processed file
+            if original_file_path.endswith(".wav"):
+                processed_file_path = original_file_path.replace(".wav", "_processed.wav")
+            if original_file_path.endswith(".mp3"):
+                processed_file_path = original_file_path.replace(".mp3","_processed.mp3")
+            sf.write(processed_file_path, y_processed, sr)
+            print("PPPP:",processed_file_path)
+
+            # Store the latest processed file path in session
+            request.session["latest_processed_audio"] = processed_file_path
+
+            return render(request, 'preprocessing/audio_preprocessing.html', {
+                "audio_file": {"url": request.session.get("current_audio_file_path")},
+                "processed_audio_file": {"url": settings.MEDIA_URL+'/audio/' + os.path.basename(processed_file_path)},
+                "page_obj": paginate(request)
+            })
 
         """if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return render(request, "preprocessing/dataset_table.html", {"page_obj": page_obj})
 """
     return render(request, 'preprocessing/audio_preprocessing.html',{"audio_file":{"url":request.session.get("current_audio_file_path")},"page_obj":page_obj})
-        
 
+def butter_filter(y, sr, cutoff, filter_type="low"):
+    nyquist = 0.5 * sr
+    normal_cutoff = cutoff / nyquist
+    b, a = butter(4, normal_cutoff, btype=filter_type, analog=False)
+    return lfilter(b, a, y)
+
+def apply_preprocessing(y, sr, steps, params):
+    if "noise_reduction" in steps:
+        noise_strength = float(params.get("noise_strength", 0.1))
+        y = nr.reduce_noise(y=y, sr=sr, prop_decrease=noise_strength)
+    
+    if "low_pass" in steps:
+        cutoff = float(params.get("low_pass_cutoff", 1000))
+        y = butter_filter(y = y, sr = sr, cutoff=cutoff, filter_type="low")
+
+    if "high_pass" in steps:
+        cutoff = float(params.get("high_pass_cutoff", 500))
+        y = butter_filter(y = y, sr = sr, cutoff=cutoff, filter_type="high")
+
+    if "pitch_shift" in steps:
+        semitones = int(params.get("pitch_steps", 0))
+        y = librosa.effects.pitch_shift(y = y, sr = sr, n_steps = semitones)
+
+    if "time_stretch" in steps:
+        factor = float(params.get("stretch_factor", 1.0))
+        y = librosa.effects.time_stretch(y = y, rate = factor)
+
+    return y
+
+
+def analyze_audio(file_path):
+    y, sr = librosa.load(file_path, sr=None)
+    
+    # Compute features
+    duration = librosa.get_duration(y=y, sr=sr)
+    spectral_bandwidth = np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr))
+    spectral_rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
+    zero_crossing_rate = np.mean(librosa.feature.zero_crossing_rate(y))
+    rms_energy = np.mean(librosa.feature.rms(y=y))
+    tempo_array, _ = librosa.beat.beat_track(y=y, sr=sr)
+    tempo = float(tempo_array) if tempo_array.size > 0 else 0.0
+    
+    return {
+        "duration": round(duration, 2),
+        "sample_rate": sr,
+        "freq_range": round(spectral_rolloff, 2),
+        "spectral_bandwidth": round(spectral_bandwidth, 2),
+        "zero_crossing_rate": round(zero_crossing_rate, 4),
+        "rms_energy": round(rms_energy, 4),
+        "tempo": round(tempo, 2)
+    }
 
 
 def extract_audio_features(input_folder, segment_duration=5):
