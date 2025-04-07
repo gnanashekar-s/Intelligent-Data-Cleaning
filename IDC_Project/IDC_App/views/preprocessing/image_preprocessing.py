@@ -13,6 +13,67 @@ import base64
 import zipfile
 import shutil
 import json
+import os
+import random
+from PIL import Image, ImageOps, ImageEnhance
+import numpy as np
+
+def rotate_image_cv2(image_array, angle):
+    """Rotate image using OpenCV with visible effect (not just metadata)."""
+    (h, w) = image_array.shape[:2]
+    center = (w // 2, h // 2)
+
+    # Compute the rotation matrix
+    M = cv2.getRotationMatrix2D(center, angle, 1.0)
+
+    # Calculate the bounding dimensions
+    cos = np.abs(M[0, 0])
+    sin = np.abs(M[0, 1])
+    new_w = int((h * sin) + (w * cos))
+    new_h = int((h * cos) + (w * sin))
+
+    # Adjust the rotation matrix to take into account translation
+    M[0, 2] += (new_w / 2) - center[0]
+    M[1, 2] += (new_h / 2) - center[1]
+
+    # Perform actual rotation with border fill
+    return cv2.warpAffine(image_array, M, (new_w, new_h), borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))
+def apply_augmentation(image_array, augmentation_option, save_dir, base_filename, output_format):
+    augmented_paths = []
+
+    if isinstance(image_array, np.ndarray):
+        # Keep OpenCV format and apply directly
+        image_cv2 = image_array
+    else:
+        image_cv2 = cv2.cvtColor(np.array(image_array), cv2.COLOR_RGB2BGR)
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Apply augmentation
+    if augmentation_option == "Right Augmentation":
+        aug_image_cv2 = rotate_image_cv2(image_cv2, -90)
+    elif augmentation_option == "Left Augmentation":
+        aug_image_cv2 = rotate_image_cv2(image_cv2, 90)
+    elif augmentation_option == "Flip Augmentation":
+        aug_image_cv2 = cv2.flip(image_cv2, 1)
+    elif augmentation_option == "Rotate 15 Degrees":
+        aug_image_cv2 = rotate_image_cv2(image_cv2, 15)
+    else:
+        aug_image_cv2 = rotate_image_cv2(image_cv2, random.choice([90, 180, 270]))
+        if random.choice([True, False]):
+            aug_image_cv2 = cv2.flip(aug_image_cv2, 1)
+        # Random brightness (simulated in OpenCV)
+        hsv = cv2.cvtColor(aug_image_cv2, cv2.COLOR_BGR2HSV)
+        hsv[:, :, 2] = np.clip(hsv[:, :, 2] * random.uniform(0.7, 1.3), 0, 255)
+        aug_image_cv2 = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+    # Save image
+    save_path = os.path.join(save_dir, f"{base_filename}_aug.{output_format.lower()}")
+    cv2.imwrite(save_path, aug_image_cv2)
+    augmented_paths.append(save_path)
+
+    return augmented_paths
+
 
 def paginate_images(request):
     page_number = request.GET.get("page", 1)
@@ -51,7 +112,7 @@ def image_preprocessing(request):
                 
                 # Save preview of first 5 images
                 preview_images = []
-                for i, img_file in enumerate(uploaded_files[:5]):
+                for i, img_file in enumerate(uploaded_files[:]):
                     # Save the file
                     img_path = os.path.join(upload_dir, img_file.name)
                     with open(img_path, "wb+") as destination:
@@ -152,7 +213,7 @@ def image_preprocessing(request):
                     })
                     
                     # Add to previews (first 5)
-                    if len(processed_previews) < 5:
+                    if len(processed_previews) < 16:
                         processed_previews.append({
                             "name": output_filename,
                             "url": f"/media/images/processed/{output_filename}",
@@ -276,57 +337,6 @@ def process_image(img, resize_option, color_option, normalization_option, noise_
     
     return img
 
-def apply_augmentation(img, augmentation_option, output_dir, base_filename, output_format):
-    """Apply data augmentation techniques to an image"""
-    augmented_paths = []
-    
-    # Light augmentation: flip
-    if augmentation_option in ["Light Augmentation", "Medium Augmentation", "Heavy Augmentation"]:
-        # Horizontal flip
-        flipped = cv2.flip(img, 1)
-        flip_path = os.path.join(output_dir, f"flip_{base_filename}.{output_format}")
-        cv2.imwrite(flip_path, flipped)
-        augmented_paths.append(flip_path)
-    
-    # Medium augmentation: rotation, brightness
-    if augmentation_option in ["Medium Augmentation", "Heavy Augmentation"]:
-        # Rotation
-        h, w = img.shape[:2]
-        center = (w // 2, h // 2)
-        matrix = cv2.getRotationMatrix2D(center, 15, 1.0)
-        rotated = cv2.warpAffine(img, matrix, (w, h))
-        rotate_path = os.path.join(output_dir, f"rotate_{base_filename}.{output_format}")
-        cv2.imwrite(rotate_path, rotated)
-        augmented_paths.append(rotate_path)
-        
-        # Brightness adjustment
-        bright = cv2.convertScaleAbs(img, alpha=1.5, beta=0)
-        bright_path = os.path.join(output_dir, f"bright_{base_filename}.{output_format}")
-        cv2.imwrite(bright_path, bright)
-        augmented_paths.append(bright_path)
-    
-    # Heavy augmentation: noise, blur
-    if augmentation_option == "Heavy Augmentation":
-        # Add noise
-        noise = np.copy(img)
-        noise_val = np.random.normal(0, 15, noise.shape).astype(np.uint8)
-        noise = cv2.add(noise, noise_val)
-        noise_path = os.path.join(output_dir, f"noise_{base_filename}.{output_format}")
-        cv2.imwrite(noise_path, noise)
-        augmented_paths.append(noise_path)
-        
-        # Random crop
-        h, w = img.shape[:2]
-        crop_h, crop_w = int(h * 0.8), int(w * 0.8)
-        start_h = np.random.randint(0, h - crop_h + 1)
-        start_w = np.random.randint(0, w - crop_w + 1)
-        cropped = img[start_h:start_h+crop_h, start_w:start_w+crop_w]
-        cropped = cv2.resize(cropped, (w, h))
-        crop_path = os.path.join(output_dir, f"crop_{base_filename}.{output_format}")
-        cv2.imwrite(crop_path, cropped)
-        augmented_paths.append(crop_path)
-    
-    return augmented_paths
 
 def get_output_format(format_option, filename):
     """Determine output format based on selection and original filename"""

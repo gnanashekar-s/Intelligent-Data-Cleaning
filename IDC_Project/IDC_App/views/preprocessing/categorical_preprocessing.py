@@ -5,10 +5,14 @@ import numpy as np
 from io import StringIO
 from sklearn.preprocessing import LabelEncoder
 from scipy import stats
-
+import matplotlib.pyplot as plt
+import io
+import base64
+import seaborn as sns
 def categorical_preprocessing(request):
     context = {}
     HISTORY_LIMIT = 5
+    outlier_plot = None
     
     # Initialize session data
     if 'csv_data' not in request.session:
@@ -22,7 +26,15 @@ def categorical_preprocessing(request):
     
     # Load data
     df = pd.read_json(StringIO(request.session['csv_data']))
-    
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='ignore')  # Keep strings if not convertible
+
+    # Handle Undo
+    if 'undo' in request.POST and request.session['history']:
+        request.session['csv_data'] = request.session['history'].pop()
+        request.session.modified = True
+        df = pd.read_json(StringIO(request.session['csv_data']))
+
     # Handle Undo
     if 'undo' in request.POST and request.session['history']:
         request.session['csv_data'] = request.session['history'].pop()
@@ -62,23 +74,42 @@ def categorical_preprocessing(request):
                         df[col].fillna(custom_value, inplace=True)
                     elif method == 'remove':
                         df.dropna(subset=[col], inplace=True)
-            if 'remove_outliers' in request.POST:
-                columns = request.POST.getlist('outlier_columns')
-                method = request.POST.get('outlier_method')
+
                 
-                for col in columns:
-                    if pd.api.types.is_numeric_dtype(df[col]):
-                        if method == 'zscore':
-                            # Using Z-score method to detect outliers
-                            z_scores = np.abs(stats.zscore(df[col].dropna()))
-                            df = df[(z_scores < 3)]  # Keep only rows where Z-score is less than 3
-                        elif method == 'iqr':
-                            # Using IQR method to detect outliers
-                            Q1 = df[col].quantile(0.25)
-                            Q3 = df[col].quantile(0.75)
-                            IQR = Q3 - Q1
-                            df = df[(df[col] >= (Q1 - 1.5 * IQR)) & (df[col] <= (Q3 + 1.5 * IQR))]
-            
+            # Outlier Handling
+            action = request.POST.get('action', '')
+            if action in ['visualize_outliers', 'remove_outliers']:
+                method = request.POST.get('outlier_method')
+                selected_columns = request.POST.getlist('selected_columns_outliers')
+                for col in selected_columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
+                selected_columns = [col for col in selected_columns if col in df.select_dtypes(include=[np.number]).columns]
+
+                if selected_columns:
+                  if action == 'visualize_outliers':                    fig, axes = plt.subplots(len(selected_columns), 1, figsize=(6, 4 * len(selected_columns)))
+                    if len(selected_columns) == 1:
+                        axes = [axes]
+                    for ax, col in zip(axes, selected_columns):
+                        sns.boxplot(data=df, x=col, ax=ax)
+                        ax.set_title(f'Boxplot ({method.upper()}) - {col}')
+                    buf = io.BytesIO()
+                    plt.tight_layout()
+                    plt.savefig(buf, format='png')
+                    plt.close(fig)
+                    buf.seek(0)
+                    outlier_plot = base64.b64encode(buf.read()).decode('utf-8')
+
+                  elif action == 'remove_outliers' and selected_columns:
+                    if method == 'zscore':
+                        col_zscores = np.abs(df[selected_columns].apply(stats.zscore))
+                        df = df[(col_zscores < 3).all(axis=1)]
+                    elif method == 'iqr':
+                        Q1 = df[selected_columns].quantile(0.25)
+                        Q3 = df[selected_columns].quantile(0.75)
+                        IQR = Q3 - Q1
+                        mask = ~((df[selected_columns] < (Q1 - 1.5 * IQR)) | (df[selected_columns] > (Q3 + 1.5 * IQR))).any(axis=1)
+                        df = df[mask]
             # Handle encoding
             if 'encode' in request.POST:
                 encode_columns = request.POST.getlist('encode_columns')
@@ -139,13 +170,15 @@ def categorical_preprocessing(request):
     context.update({
         'columns': df.columns.tolist(),
         'categorical_columns': df.select_dtypes(include=['object']).columns.tolist(),
+        'numeric_columns': df.select_dtypes(include=[np.number]).columns.tolist(), 
         'columns_with_nulls': [(col, df[col].isna().sum()) for col in df.columns],
         'page_data': page_obj.object_list,
         'current_page': page_obj.number,
         'prev_page': page_obj.previous_page_number() if page_obj.has_previous() else None,
         'next_page': page_obj.next_page_number() if page_obj.has_next() else None,
         'total_pages': paginator.num_pages,
-        'history_count': len(request.session.get('history', []))
+        'history_count': len(request.session.get('history', [])),
+        'outlier_plot': outlier_plot,
     })
 
     return render(request, 'preprocessing/categorical_preprocessing.html', context)

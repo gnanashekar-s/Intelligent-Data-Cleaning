@@ -71,30 +71,37 @@
                     <li><strong>IQR Method:</strong> Removes rows outside the range of 1.5 * IQR from the 1st and 3rd quartiles</li>
                 </ul>
             </div>
-            <form method="post">
+            <form method="POST">
                 {% csrf_token %}
-                <div class="row">
-                    <div class="col-md-4">
-                        <select class="form-select" name="outlier_method">
-                            <option value="zscore">Z-Score Method</option>
-                            <option value="iqr">IQR Method</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <button class="btn btn-danger w-100" type="submit" name="remove_outliers">Remove Outliers</button>
-                    </div>
-                </div>
+                <h3>Outlier Detection</h3>
+              
+                <label for="outlier_method">Method:</label>
+                <select name="outlier_method" required>
+                  <option value="zscore">Z-Score</option>
+                  <option value="iqr">IQR</option>
+                </select>
+              
+                <br><br>
+              
+                <label>Select numeric columns:</label><br>
+                {% for col in numeric_columns %}
+                  <input type="checkbox" name="selected_columns_outliers" value="{{ col }}"> {{ col }}<br>
+                {% endfor %}
+              
+                <br>
+                <button type="submit" name="action" value="visualize_outliers">Visualize Outliers</button>
+                <button type="submit" name="action" value="remove_outliers">Remove Outliers</button>
+              </form>
+              
+  
 
-                <div class="mt-3">
-                    {% for column in numeric_columns %}
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="checkbox" 
-                               name="outlier_columns" value="{{ column }}">
-                        <label class="form-check-label">{{ column }}</label>
-                    </div>
-                    {% endfor %}
-                </div>
-            </form>
+              
+              {% if outlier_plot %}
+                <h4>Outlier Visualization</h4>
+                <img src="data:image/png;base64,{{ outlier_plot }}" alt="Outlier Plot" style="max-width: 100%; height: auto;">
+              {% endif %}
+              
+              
         </div>
         <!-- Missing Value Handling -->
         <div class="form-section">
